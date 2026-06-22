@@ -16,6 +16,7 @@ type Submission = {
   date: string;
   weekKey: string;
   issueFlagged: boolean;
+  issueDetails: string[];
 };
 
 type DashboardData = {
@@ -131,10 +132,14 @@ export default function Dashboard() {
   }, [data]);
 
   const issuesByEmployeeWeek = useMemo(() => {
-    const map = new Map<string, boolean>();
+    const map = new Map<string, string[]>();
     if (!data) return map;
     for (const s of data.submissions) {
-      if (s.issueFlagged) map.set(`${s.employeeId}|${s.weekKey}`, true);
+      if (s.issueFlagged && s.issueDetails.length) {
+        const key = `${s.employeeId}|${s.weekKey}`;
+        const existing = map.get(key) ?? [];
+        map.set(key, existing.concat(s.issueDetails));
+      }
     }
     return map;
   }, [data]);
@@ -163,8 +168,8 @@ export default function Dashboard() {
     if (!selectedWeek) return [];
     return scopedEmployees.map((e) => {
       const submitted = submittedWeeksByEmployee.get(e.id)?.has(selectedWeek) ?? false;
-      const issue = issuesByEmployeeWeek.get(`${e.id}|${selectedWeek}`) ?? false;
-      return { ...e, submitted, issue };
+      const issueDetails = issuesByEmployeeWeek.get(`${e.id}|${selectedWeek}`) ?? [];
+      return { ...e, submitted, issue: issueDetails.length > 0, issueDetails };
     });
   }, [scopedEmployees, submittedWeeksByEmployee, issuesByEmployeeWeek, selectedWeek]);
 
@@ -367,9 +372,13 @@ export default function Dashboard() {
                     {r.branch}
                     {r.manager ? ` · ${r.manager}` : ""}
                   </div>
+                  {r.issue && (
+                    <div style={{ color: colors.amber, fontSize: 12, fontWeight: 600, marginTop: 2 }}>
+                      {r.issueDetails.join(", ")}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {r.issue && <span style={{ color: colors.amber, fontSize: 12, fontWeight: 600 }}>Issue</span>}
                   <span style={{ color: r.submitted ? colors.green : colors.red, fontWeight: 700, fontSize: 12 }}>
                     {r.submitted ? "Submitted" : "Not Submitted"}
                   </span>

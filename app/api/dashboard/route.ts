@@ -168,6 +168,7 @@ export async function GET() {
       date: string;
       weekKey: string;
       issueFlagged: boolean;
+      issueDetails: string[];
     }[] = [];
 
     for (const item of inspectionItems) {
@@ -179,18 +180,20 @@ export async function GET() {
       const damage = colVal(item, "color_mkye38zd");
       const tireStatus = colVal(item, "color_mkyetmm4");
       const tireReplacement = colVal(item, "color_mkye1k0g");
-      const issueFlagged =
-        drivingStatus === "Needs Repair" ||
-        damage === "YES - NEW DAMAGE" ||
-        tireStatus === "25-10%" ||
-        tireStatus === "BALD TIRE" ||
-        tireReplacement === "Replace";
+
+      const issueDetails: string[] = [];
+      if (drivingStatus === "Needs Repair") issueDetails.push(`Driving status: ${drivingStatus}`);
+      if (damage === "YES - NEW DAMAGE") issueDetails.push("New damage reported");
+      if (tireStatus === "25-10%" || tireStatus === "BALD TIRE")
+        issueDetails.push(`Tire status: ${tireStatus}`);
+      if (tireReplacement === "Replace") issueDetails.push("Tire replacement needed");
 
       submissions.push({
         employeeId,
         date,
         weekKey: dateToWeekKey(date),
-        issueFlagged,
+        issueFlagged: issueDetails.length > 0,
+        issueDetails,
       });
     }
 
