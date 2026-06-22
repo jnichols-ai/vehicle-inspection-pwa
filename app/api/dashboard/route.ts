@@ -1,38 +1,38 @@
 import { NextResponse } from "next/server";
+import { dateToWeekKey, getISOWeek, weekKey } from "@/lib/weeks";
 
 export const dynamic = "force-dynamic";
 
-const BOARD_ID = "18418816965"; // Vehicle Inspection Compliance
 const MONDAY_API_URL = "https://api.monday.com/v2";
 
-const COLUMN_IDS = [
-  "color_mm4jypn", // Branch
-  "text_mm4jw8hj", // Manager
-  "date_mm4j510j", // Last Inspection Date
-  "color_mm4jby1b", // Submitted This Week
-  "color_mm4jskx9", // Issue Flagged
+// Employee Directory — roster (branch/office, manager, active status)
+const EMPLOYEE_BOARD_ID = "18003250999";
+const EMPLOYEE_COLUMN_IDS = ["status", "color_mkvyytff", "people"];
+
+// Truck Inspection — actual submission events with dates (the real history)
+const INSPECTION_BOARD_ID = "18391339956";
+const INSPECTION_COLUMN_IDS = [
+  "board_relation_mkyeka3z", // linked employee
+  "date_mkyex2ej", // inspection date
+  "color_mkye5y90", // Driving Status
+  "color_mkye38zd", // Damage
+  "color_mkyetmm4", // Tire Status
+  "color_mkye1k0g", // Tire Replacement
 ];
 
-const QUERY = `
-  query GetBoard($boardId: ID!, $columnIds: [String!]) {
+const ITEMS_QUERY = `
+  query GetBoard($boardId: ID!, $columnIds: [String!], $limit: Int!) {
     boards(ids: [$boardId]) {
       name
-      groups {
-        id
-        title
-      }
-      items_page(limit: 500) {
+      items_page(limit: $limit) {
         cursor
         items {
           id
           name
-          group {
-            id
-            title
-          }
           column_values(ids: $columnIds) {
             id
             text
+            value
           }
         }
       }
@@ -41,19 +41,16 @@ const QUERY = `
 `;
 
 const NEXT_PAGE_QUERY = `
-  query NextPage($cursor: String!) {
-    next_items_page(cursor: $cursor, limit: 500) {
+  query NextPage($cursor: String!, $limit: Int!) {
+    next_items_page(cursor: $cursor, limit: $limit) {
       cursor
       items {
         id
         name
-        group {
-          id
-          title
-        }
         column_values {
           id
           text
+          value
         }
       }
     }
@@ -63,8 +60,7 @@ const NEXT_PAGE_QUERY = `
 type MondayItem = {
   id: string;
   name: string;
-  group: { id: string; title: string };
-  column_values: { id: string; text: string | null }[];
+  column_values: { id: string; text: string | null; value: string | null }[];
 };
 
 async function mondayFetch(query: string, variables: Record<string, unknown>) {
@@ -94,101 +90,121 @@ async function mondayFetch(query: string, variables: Record<string, unknown>) {
   return json.data;
 }
 
+async function fetchAllItems(boardId: string, columnIds: string[]): Promise<MondayItem[]> {
+  const data = await mondayFetch(ITEMS_QUERY, { boardId, columnIds, limit: 250 });
+  const board = data.boards[0];
+  let items: MondayItem[] = board.items_page.items;
+  let cursor: string | null = board.items_page.cursor;
+
+  while (cursor) {
+    const nextData = await mondayFetch(NEXT_PAGE_QUERY, { cursor, limit: 250 });
+    items = items.concat(nextData.next_items_page.items);
+    cursor = nextData.next_items_page.cursor;
+  }
+  return items;
+}
+
 function colVal(item: MondayItem, id: string): string {
   const col = item.column_values.find((c) => c.id === id);
   return col?.text ?? "";
 }
 
+function linkedEmployeeId(item: MondayItem, id: string): string | null {
+  const col = item.column_values.find((c) => c.id === id);
+  if (!col?.value) return null;
+  try {
+    const parsed = JSON.parse(col.value);
+    const linked = parsed?.linkedPulseIds?.[0]?.linkedPulseId;
+    return linked ? String(linked) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   try {
-    const data = await mondayFetch(QUERY, { boardId: BOARD_ID, columnIds: COLUMN_IDS });
-    const board = data.boards[0];
+    const [employeeItems, inspectionItems] = await Promise.all([
+      fetchAllItems(EMPLOYEE_BOARD_ID, EMPLOYEE_COLUMN_IDS),
+      fetchAllItems(INSPECTION_BOARD_ID, INSPECTION_COLUMN_IDS),
+    ]);
 
-    let items: MondayItem[] = board.items_page.items;
-    let cursor = board.items_page.cursor;
-
-    while (cursor) {
-      const nextData = await mondayFetch(NEXT_PAGE_QUERY, { cursor });
-      items = items.concat(nextData.next_items_page.items);
-      cursor = nextData.next_items_page.cursor;
-    }
-
-    const branchMap: Record<
-      string,
-      {
-        branch: string;
-        total: number;
-        submitted: number;
-        notSubmitted: number;
-        issuesFlagged: number;
-        employees: {
-          name: string;
-          manager: string;
-          lastInspectionDate: string;
-          submitted: boolean;
-          issueStatus: string;
-        }[];
-      }
-    > = {};
-
-    let totalSubmitted = 0;
-    let totalIssues = 0;
-
-    for (const item of items) {
-      const branch = colVal(item, "color_mm4jypn") || item.group.title;
-      if (!branch || branch === "Group Title") continue;
-
-      const manager = colVal(item, "text_mm4jw8hj");
-      const lastInspectionDate = colVal(item, "date_mm4j510j");
-      const submittedStatus = colVal(item, "color_mm4jby1b");
-      const issueStatus = colVal(item, "color_mm4jskx9");
-      const submitted = submittedStatus === "Submitted";
-      const flagged = issueStatus === "Issue Flagged";
-
-      if (!branchMap[branch]) {
-        branchMap[branch] = {
-          branch,
-          total: 0,
-          submitted: 0,
-          notSubmitted: 0,
-          issuesFlagged: 0,
-          employees: [],
+    const employees = employeeItems
+      .map((item) => {
+        const status = colVal(item, "status");
+        const branch = colVal(item, "color_mkvyytff");
+        const manager = colVal(item, "people");
+        return {
+          id: item.id,
+          name: item.name,
+          branch: branch || "Unassigned",
+          manager: manager || "",
+          active: status === "Active",
         };
-      }
+      })
+      .filter((e) => e.active && e.branch !== "Unassigned");
 
-      const b = branchMap[branch];
-      b.total += 1;
-      if (submitted) {
-        b.submitted += 1;
-        totalSubmitted += 1;
-      } else {
-        b.notSubmitted += 1;
-      }
-      if (flagged) {
-        b.issuesFlagged += 1;
-        totalIssues += 1;
-      }
-      b.employees.push({
-        name: item.name,
-        manager,
-        lastInspectionDate,
-        submitted,
-        issueStatus: issueStatus || "N/A",
+    const employeeById = new Map(employees.map((e) => [e.id, e]));
+
+    const submissions: {
+      employeeId: string;
+      date: string;
+      weekKey: string;
+      issueFlagged: boolean;
+    }[] = [];
+
+    for (const item of inspectionItems) {
+      const employeeId = linkedEmployeeId(item, "board_relation_mkyeka3z");
+      const date = colVal(item, "date_mkyex2ej");
+      if (!employeeId || !date || !employeeById.has(employeeId)) continue;
+
+      const drivingStatus = colVal(item, "color_mkye5y90");
+      const damage = colVal(item, "color_mkye38zd");
+      const tireStatus = colVal(item, "color_mkyetmm4");
+      const tireReplacement = colVal(item, "color_mkye1k0g");
+      const issueFlagged =
+        drivingStatus === "Needs Repair" ||
+        damage === "YES - NEW DAMAGE" ||
+        tireStatus === "25-10%" ||
+        tireStatus === "BALD TIRE" ||
+        tireReplacement === "Replace";
+
+      submissions.push({
+        employeeId,
+        date,
+        weekKey: dateToWeekKey(date),
+        issueFlagged,
       });
     }
 
-    const branches = Object.values(branchMap).sort((a, b) => a.branch.localeCompare(b.branch));
+    const branches = Array.from(new Set(employees.map((e) => e.branch))).sort((a, b) =>
+      a.localeCompare(b)
+    );
 
-    const summary = {
-      totalEmployees: items.length,
-      totalSubmitted,
-      totalNotSubmitted: items.length - totalSubmitted,
-      totalIssuesFlagged: totalIssues,
-      submissionRate: items.length ? Math.round((totalSubmitted / items.length) * 100) : 0,
-      generatedAt: new Date().toISOString(),
-    };
+    const now = new Date();
+    const { isoYear, isoWeek } = getISOWeek(now);
+    const currentWeekKey = weekKey(isoYear, isoWeek);
+    const lastWeekDate = new Date(now);
+    lastWeekDate.setUTCDate(lastWeekDate.getUTCDate() - 7);
+    const lastWeekIso = getISOWeek(lastWeekDate);
+    const lastWeekKey = weekKey(lastWeekIso.isoYear, lastWeekIso.isoWeek);
 
-    return NextResponse.json({ summary, branches });
+    const years = Array.from(
+      new Set(submissions.map((s) => Number(s.weekKey.slice(0, 4))))
+    ).sort();
+    if (!years.includes(isoYear)) years.push(isoYear);
+
+    return NextResponse.json({
+      employees,
+      submissions,
+      branches,
+      meta: {
+        currentWeekKey,
+        lastWeekKey,
+        currentYear: isoYear,
+        availableYears: years.sort(),
+        generatedAt: now.toISOString(),
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
