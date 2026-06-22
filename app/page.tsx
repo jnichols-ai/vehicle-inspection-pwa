@@ -33,33 +33,49 @@ type DashboardData = {
 };
 
 const colors = {
-  bg: "#0f172a",
-  card: "#1e293b",
-  border: "#334155",
-  text: "#e2e8f0",
-  muted: "#94a3b8",
-  green: "#22c55e",
-  red: "#ef4444",
-  amber: "#f59e0b",
-  blue: "#3b82f6",
+  bg: "#ffffff",
+  card: "#ffffff",
+  panel: "#f8fafc",
+  border: "#e2e8f0",
+  text: "#0f172a",
+  muted: "#64748b",
+  green: "#16a34a",
+  red: "#dc2626",
+  amber: "#d97706",
+  blue: "#0f172a",
+  accent: "#dc2626",
 };
 
 type StatusFilter = "all" | "submitted" | "notSubmitted";
 
+const labelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: "0.06em",
+  color: colors.muted,
+  textTransform: "uppercase",
+  marginBottom: 4,
+  display: "block",
+};
+
 const selectStyle: CSSProperties = {
-  background: colors.card,
+  background: "#ffffff",
   color: colors.text,
   border: `1px solid ${colors.border}`,
-  borderRadius: 8,
+  borderRadius: 6,
   padding: "8px 10px",
   fontSize: 13,
+  minWidth: 150,
 };
 
 const sectionTitleStyle: CSSProperties = {
-  fontSize: 15,
-  marginTop: 24,
-  marginBottom: 10,
-  color: colors.text,
+  fontSize: 13,
+  fontWeight: 700,
+  letterSpacing: "0.04em",
+  textTransform: "uppercase",
+  marginTop: 28,
+  marginBottom: 12,
+  color: colors.muted,
 };
 
 function StatCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
@@ -68,13 +84,13 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
       style={{
         background: colors.card,
         border: `1px solid ${colors.border}`,
-        borderRadius: 10,
+        borderRadius: 8,
         padding: "14px 16px",
         flex: "1 1 140px",
         minWidth: 140,
       }}
     >
-      <div style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>{label}</div>
+      <div style={labelStyle}>{label}</div>
       <div style={{ fontSize: 26, fontWeight: 700, color: color ?? colors.text }}>{value}</div>
     </div>
   );
@@ -212,94 +228,152 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div style={{ background: colors.bg, color: colors.text, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        Loading dashboard…
+      <div
+        style={{
+          background: colors.bg,
+          color: colors.muted,
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "system-ui, sans-serif",
+          fontSize: 14,
+        }}
+      >
+        Loading live board data…
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div style={{ background: colors.bg, color: colors.red, minHeight: "100vh", padding: 24 }}>
+      <div style={{ background: colors.bg, color: colors.red, minHeight: "100vh", padding: 24, fontFamily: "system-ui, sans-serif" }}>
         Error loading dashboard: {error}
       </div>
     );
   }
 
   return (
-    <main style={{ background: colors.bg, color: colors.text, minHeight: "100vh", padding: "20px 16px 60px", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ maxWidth: 980, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-          <h1 style={{ fontSize: 22, margin: 0, fontWeight: 700 }}>Vehicle Inspection Dashboard</h1>
+    <main style={{ background: colors.bg, color: colors.text, minHeight: "100vh", padding: "24px 20px 60px", fontFamily: "system-ui, sans-serif" }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 8,
+              background: colors.text,
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              fontSize: 14,
+              flexShrink: 0,
+            }}
+          >
+            VI
+          </div>
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: 20, margin: 0, fontWeight: 700 }}>Vehicle Inspection Dashboard</h1>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: colors.accent, textTransform: "uppercase" }}>
+              Fleet Compliance · Field Operations
+            </div>
+          </div>
           <span style={{ fontSize: 12, color: colors.muted }}>
             Updated {new Date(data.meta.generatedAt).toLocaleString()}
           </span>
         </div>
 
-        <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div
+          style={{
+            marginTop: 20,
+            background: colors.panel,
+            border: `1px solid ${colors.border}`,
+            borderRadius: 8,
+            padding: 16,
+            display: "flex",
+            gap: 16,
+            flexWrap: "wrap",
+            alignItems: "flex-end",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Branch / Office</label>
+            <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} style={selectStyle}>
+              <option value="all">All branches</option>
+              {data.branches.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Year</label>
+            <select value={year ?? data.meta.currentYear} onChange={(e) => setYear(Number(e.target.value))} style={selectStyle}>
+              {data.meta.availableYears.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Week</label>
+            <select
+              value={selectedWeek ?? ""}
+              onChange={(e) => setSelectedWeek(e.target.value)}
+              style={{ ...selectStyle, minWidth: 220 }}
+            >
+              {weeklyRates.map((w) => (
+                <option key={w.key} value={w.key}>
+                  {w.label} — {w.rate}%
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Status</label>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)} style={selectStyle}>
+              <option value="all">All employees</option>
+              <option value="submitted">Performed inspection</option>
+              <option value="notSubmitted">Didn&apos;t perform inspection</option>
+            </select>
+          </div>
+
           <button
             onClick={handleNotSubmittedLastWeek}
             style={{
-              background: colors.red,
+              background: colors.accent,
               color: "#fff",
               border: "none",
-              borderRadius: 8,
-              padding: "10px 16px",
+              borderRadius: 6,
+              padding: "9px 14px",
               fontWeight: 600,
               cursor: "pointer",
-              fontSize: 14,
+              fontSize: 13,
             }}
           >
             Didn&apos;t Submit Last Week ({data.meta.lastWeekKey})
           </button>
+
           {selectedWeekInfo && (
-            <span style={{ fontSize: 13, color: colors.muted }}>Viewing {selectedWeekInfo.label}</span>
+            <span style={{ fontSize: 12, color: colors.muted }}>Viewing {selectedWeekInfo.label}</span>
           )}
         </div>
 
-        <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} style={selectStyle}>
-            <option value="all">All Branches</option>
-            {data.branches.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
+        <div style={{ height: 2, background: colors.text, marginTop: 18, marginBottom: 18 }} />
 
-          <select value={year ?? data.meta.currentYear} onChange={(e) => setYear(Number(e.target.value))} style={selectStyle}>
-            {data.meta.availableYears.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedWeek ?? ""}
-            onChange={(e) => setSelectedWeek(e.target.value)}
-            style={{ ...selectStyle, minWidth: 220 }}
-          >
-            {weeklyRates.map((w) => (
-              <option key={w.key} value={w.key}>
-                {w.label} — {w.rate}%
-              </option>
-            ))}
-          </select>
-
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)} style={selectStyle}>
-            <option value="all">All Employees</option>
-            <option value="submitted">Performed Inspection</option>
-            <option value="notSubmitted">Didn&apos;t Perform Inspection</option>
-          </select>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <StatCard label="Required" value={summary.total} />
           <StatCard label="Submitted" value={summary.submitted} color={colors.green} />
           <StatCard label="Not Submitted" value={summary.notSubmitted} color={colors.red} />
           <StatCard label="Issues Flagged" value={summary.issues} color={colors.amber} />
-          <StatCard label="Compliance Rate" value={`${summary.rate}%`} color={colors.blue} />
+          <StatCard label="Compliance Rate" value={`${summary.rate}%`} color={colors.accent} />
         </div>
 
         <h2 style={sectionTitleStyle}>Weekly Compliance — {year}</h2>
@@ -318,7 +392,7 @@ export default function Dashboard() {
                   background: w.rate >= 80 ? colors.green : w.rate >= 50 ? colors.amber : colors.red,
                   borderRadius: 2,
                   cursor: "pointer",
-                  outline: isSelected ? `2px solid ${colors.blue}` : isCurrent ? `1px dashed ${colors.muted}` : "none",
+                  outline: isSelected ? `2px solid ${colors.accent}` : isCurrent ? `1px dashed ${colors.muted}` : "none",
                   flexShrink: 0,
                 }}
               />
@@ -332,9 +406,16 @@ export default function Dashboard() {
             <div key={b.branch}>
               <div
                 onClick={() => setBranchFilter(branchFilter === b.branch ? "all" : b.branch)}
-                style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4, cursor: "pointer" }}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: 13,
+                  marginBottom: 4,
+                  cursor: "pointer",
+                  color: branchFilter === b.branch ? colors.accent : colors.text,
+                }}
               >
-                <span style={{ fontWeight: branchFilter === b.branch ? 700 : 400 }}>{b.branch}</span>
+                <span style={{ fontWeight: branchFilter === b.branch ? 700 : 500 }}>{b.branch}</span>
                 <span style={{ color: colors.muted }}>
                   {b.submitted}/{b.total}
                 </span>
