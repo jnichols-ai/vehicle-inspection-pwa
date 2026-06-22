@@ -9,10 +9,12 @@ const MONDAY_API_URL = "https://api.monday.com/v2";
 const EMPLOYEE_BOARD_ID = "18003250999";
 const EMPLOYEE_COLUMN_IDS = ["status", "color_mkvyytff", "people", "color_mkw1131k"];
 
-// Only these job positions actually drive trucks and are required to submit
-// vehicle inspections. This excludes branch/sales/admin managers and the
-// inside-sales "inspectors" (home inspection sales reps) from compliance reporting.
-const INSPECTION_REQUIRED_JOB_POSITIONS = new Set(["Field Rep", "Technician"]);
+// Only Technicians actually drive service trucks and are required to submit
+// vehicle inspections. "Field Rep" in this org's data is the Sales-side home
+// inspection / sales role (matches the spreadsheet's "Inspectors" list), not
+// a truck driver, so it — along with all manager/admin/sales roles — is
+// excluded from compliance reporting.
+const INSPECTION_REQUIRED_JOB_POSITIONS = new Set(["Technician"]);
 
 // Truck Inspection — actual submission events with dates (the real history)
 const INSPECTION_BOARD_ID = "18391339956";
