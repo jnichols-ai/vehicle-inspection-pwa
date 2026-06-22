@@ -20,6 +20,15 @@ const INSPECTION_COLUMN_IDS = [
   "color_mkye1k0g", // Tire Replacement
 ];
 
+const COLUMN_VALUE_FIELDS = `
+  id
+  text
+  value
+  ... on BoardRelationValue {
+    linked_item_ids
+  }
+`;
+
 const ITEMS_QUERY = `
   query GetBoard($boardId: ID!, $columnIds: [String!], $limit: Int!) {
     boards(ids: [$boardId]) {
@@ -30,9 +39,7 @@ const ITEMS_QUERY = `
           id
           name
           column_values(ids: $columnIds) {
-            id
-            text
-            value
+            ${COLUMN_VALUE_FIELDS}
           }
         }
       }
@@ -48,9 +55,7 @@ const NEXT_PAGE_QUERY = `
         id
         name
         column_values {
-          id
-          text
-          value
+          ${COLUMN_VALUE_FIELDS}
         }
       }
     }
@@ -60,7 +65,12 @@ const NEXT_PAGE_QUERY = `
 type MondayItem = {
   id: string;
   name: string;
-  column_values: { id: string; text: string | null; value: string | null }[];
+  column_values: {
+    id: string;
+    text: string | null;
+    value: string | null;
+    linked_item_ids?: string[];
+  }[];
 };
 
 async function mondayFetch(query: string, variables: Record<string, unknown>) {
@@ -111,14 +121,8 @@ function colVal(item: MondayItem, id: string): string {
 
 function linkedEmployeeId(item: MondayItem, id: string): string | null {
   const col = item.column_values.find((c) => c.id === id);
-  if (!col?.value) return null;
-  try {
-    const parsed = JSON.parse(col.value);
-    const linked = parsed?.linkedPulseIds?.[0]?.linkedPulseId;
-    return linked ? String(linked) : null;
-  } catch {
-    return null;
-  }
+  const linked = col?.linked_item_ids?.[0];
+  return linked ? String(linked) : null;
 }
 
 export async function GET() {
