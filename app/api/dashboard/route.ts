@@ -5,9 +5,14 @@ export const dynamic = "force-dynamic";
 
 const MONDAY_API_URL = "https://api.monday.com/v2";
 
-// Employee Directory — roster (branch/office, manager, active status)
+// Employee Directory — roster (branch/office, manager, active status, job position)
 const EMPLOYEE_BOARD_ID = "18003250999";
-const EMPLOYEE_COLUMN_IDS = ["status", "color_mkvyytff", "people"];
+const EMPLOYEE_COLUMN_IDS = ["status", "color_mkvyytff", "people", "color_mkw1131k"];
+
+// Only these job positions actually drive trucks and are required to submit
+// vehicle inspections. This excludes branch/sales/admin managers and the
+// inside-sales "inspectors" (home inspection sales reps) from compliance reporting.
+const INSPECTION_REQUIRED_JOB_POSITIONS = new Set(["Field Rep", "Technician"]);
 
 // Truck Inspection — actual submission events with dates (the real history)
 const INSPECTION_BOARD_ID = "18391339956";
@@ -137,15 +142,22 @@ export async function GET() {
         const status = colVal(item, "status");
         const branch = colVal(item, "color_mkvyytff");
         const manager = colVal(item, "people");
+        const jobPosition = colVal(item, "color_mkw1131k");
         return {
           id: item.id,
           name: item.name,
           branch: branch || "Unassigned",
           manager: manager || "",
+          jobPosition,
           active: status === "Active",
         };
       })
-      .filter((e) => e.active && e.branch !== "Unassigned");
+      .filter(
+        (e) =>
+          e.active &&
+          e.branch !== "Unassigned" &&
+          INSPECTION_REQUIRED_JOB_POSITIONS.has(e.jobPosition)
+      );
 
     const employeeById = new Map(employees.map((e) => [e.id, e]));
 
