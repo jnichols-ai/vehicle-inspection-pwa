@@ -1,10 +1,6 @@
-const CACHE_NAME = "vi-dashboard-v1";
-const PRECACHE_URLS = ["/", "/manifest.webmanifest"];
+const CACHE_NAME = "vi-dashboard-v2";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
-  );
   self.skipWaiting();
 });
 
@@ -25,18 +21,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Network-first for everything else, so a new deploy's HTML/JS is never
+  // shadowed by a stale cached shell referencing old chunk hashes. Cache is
+  // only a fallback for offline use.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      return (
-        cached ||
-        fetch(request)
-          .then((response) => {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-            return response;
-          })
-          .catch(() => cached)
-      );
-    })
+    fetch(request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });

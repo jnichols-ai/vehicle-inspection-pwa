@@ -280,9 +280,11 @@ export default function Dashboard() {
               Fleet Compliance · Field Operations
             </div>
           </div>
-          <span style={{ fontSize: 12, color: colors.muted }}>
-            Updated {new Date(data.meta.generatedAt).toLocaleString()}
-          </span>
+          {data.meta && (
+            <span style={{ fontSize: 12, color: colors.muted }}>
+              Updated {new Date(data.meta.generatedAt).toLocaleString()}
+            </span>
+          )}
         </div>
 
         <div
